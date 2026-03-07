@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 import time
 import urllib.parse
@@ -112,6 +113,7 @@ class AuthManager:
             new_refresh_token = token_data.get("refresh_token")
             if new_refresh_token:
                 self.user_refresh_token = new_refresh_token
+                self._persist_refresh_token(new_refresh_token)
             expires_in = token_data.get("expires_in", 1800) - 60
             self.user_token_expires_at = time.time() + expires_in
             print("Successfully refreshed user access token.")
@@ -125,6 +127,23 @@ class AuthManager:
             # Optionally clear self.user_refresh_token if it's definitively invalid
             # For now, let's assume it might be a temporary issue unless error indicates otherwise
             return False
+
+    def _persist_refresh_token(self, refresh_token):
+        """Save rotated refresh token back to config.py so it survives server restarts."""
+        config_path = os.path.join(os.path.dirname(__file__), "config.py")
+        try:
+            with open(config_path, "r") as f:
+                content = f.read()
+            content = re.sub(
+                r'KROGER_REFRESH_TOKEN\s*=\s*"[^"]*"',
+                f'KROGER_REFRESH_TOKEN = "{refresh_token}"',
+                content,
+            )
+            with open(config_path, "w") as f:
+                f.write(content)
+            print("Persisted new refresh token to config.py.")
+        except Exception as e:
+            print(f"Warning: could not persist refresh token: {e}")
 
     def get_user_token(self):
         if self.user_access_token and time.time() < self.user_token_expires_at:
